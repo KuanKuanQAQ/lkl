@@ -5,7 +5,14 @@ KBUILD_CFLAGS += -fno-builtin
 exec_format = $(firstword $(subst -, ,$(CONFIG_OUTPUT_FORMAT)))
 
 ifneq (,$(filter elf64 elf32,$(exec_format)))
+ifeq ($(LKL_KABI),y)
+# Build LKL to be linked into a host kernel (e.g. the EVL core)
+KBUILD_CFLAGS += -fno-pic -mcmodel=kernel -mno-red-zone \
+                 -mno-sse -mno-sse2 -mno-mmx -mno-3dnow -mno-avx \
+                 -mno-80387 -mno-fp-ret-in-387 -mpreferred-stack-boundary=3
+else
 KBUILD_CFLAGS += -fPIC
+endif
 else ifneq (,$(filter pe,$(exec_format)))
 ifneq ($(CONFIG_OUTPUT_FORMAT),pe-x86-64)
 prefix=_
@@ -53,6 +60,12 @@ LDFLAGS_vmlinux += -r
 LKL_ENTRY_POINTS := lkl_start_kernel lkl_sys_halt lkl_syscall lkl_trigger_irq \
 	lkl_get_free_irq lkl_put_irq lkl_is_running lkl_bug lkl_printf \
 	lkl_init lkl_cleanup
+
+LKL_ENTRY_POINTS += lkl_evl_strcmp lkl_evl_strncmp lkl_evl_strncpy \
+		lkl_evl_strsep lkl_evl_simple_strtol lkl_evl_hashlen_string \
+		lkl_evl_rb_insert_color lkl_evl_rb_erase lkl_evl_rb_next \
+		lkl_evl_rb_replace_node lkl_evl_find_first_bit \
+		lkl_evl_find_first_zero_bit lkl_evl_int_sqrt lkl_evl_ns_to_timespec64
 
 ifeq ($(CONFIG_OUTPUT_FORMAT),elf32-i386)
 LKL_ENTRY_POINTS += \
