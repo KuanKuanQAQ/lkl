@@ -6,3 +6,5 @@ KASAN_SANITIZE_stacktrace.o := n
 
 obj-y = setup.o threads.o irq.o time.o syscalls.o misc.o console.o \
 	syscalls_32.o cpu.o init.o stacktrace.o evl_glue.o
+
+obj-$(CONFIG_LKL_X86_PVCLOCK) += x86-clock.o

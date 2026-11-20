@@ -56,6 +56,15 @@ struct lkl_dev_pci_ops {
 			   unsigned long long dma_handle, unsigned long size);
 };
 
+/* A single startup cross timestamp, expressed in nanoseconds. */
+struct lkl_clock_bootstrap {
+	unsigned long long counter_ns;
+	unsigned long long mono_ns;
+	unsigned long long raw_ns;
+	unsigned long long real_ns;
+	unsigned long long uncertainty_ns;
+};
+
 enum lkl_prot {
 	LKL_PROT_NONE = 0,
 	LKL_PROT_READ = 1,
@@ -201,6 +210,16 @@ struct lkl_host_operations {
 				enum lkl_prot prot);
 
 	struct lkl_dev_pci_ops *pci_ops;
+
+	/* Optional privileged clock startup services; never used by fast reads.
+	 * for_each_cpu must visit CPUs serially, without migration in callback.
+	 * map_ram must return a permanent mapping of existing guest RAM; the
+	 * host retains ownership and must keep the pvclock registrations alive.
+	 */
+	int (*clock_for_each_cpu)(int (*setup)(void *), void *arg);
+	void *(*clock_map_ram)(unsigned long long physical, unsigned long size);
+	int (*clock_bootstrap)(unsigned long long (*read_counter)(void),
+			       struct lkl_clock_bootstrap *sample);
 };
 
 /**

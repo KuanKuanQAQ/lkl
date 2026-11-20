@@ -14,6 +14,9 @@
 #include <asm/syscalls.h>
 #include <asm/cpu.h>
 #include <linux/screen_info.h>
+#ifdef CONFIG_LKL_X86_PVCLOCK
+#include <asm/x86-clock.h>
+#endif
 
 struct lkl_host_operations *lkl_ops;
 static char cmd_line[COMMAND_LINE_SIZE];
@@ -81,6 +84,13 @@ int __init lkl_start_kernel(const char *fmt, ...)
 	int ret;
 	va_list ap;
 
+#ifdef CONFIG_LKL_X86_PVCLOCK
+	ret = lkl_arch_clock_init();
+	if (ret) {
+		lkl_printf("LKL: independent clock initialization failed: %d\n", ret);
+		return ret;
+	}
+#endif
 	cmd_line_append("%s ", CONFIG_BUILTIN_CMDLINE);
 
 	va_start(ap, fmt);

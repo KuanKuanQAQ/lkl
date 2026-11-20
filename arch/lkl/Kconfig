@@ -16,6 +16,19 @@ config LKL
 	select HAVE_ARCH_KASAN
 	select TRACING
 
+config LKL_X86_PVCLOCK
+	bool "Independent x86-64 KVM pvclock for an embedded kernel"
+	depends on 64BIT && OUTPUT_FORMAT = "elf64-x86-64" && !MMU
+	default n
+	help
+	  Privileged KVM guest backend for an LKL embedded in a host kernel.
+	  LKL reads RDTSCP and the hypervisor's pvclock pages itself, then
+	  maintains its own timekeeper. Host operations only supply startup
+	  CPU visitation, permanent guest RAM mappings, and a one-time clock
+	  alignment sample. This is not suitable for user-space liblkl.
+	  Requires stable KVM pvclock, RDTSCP, unique CPU tags and a fixed CPU
+	  topology. The host must keep the registered pvclock pages alive.
+
 config LKL_FUZZING
 	bool "LLVM fuzzing instrumentation"
 	default n
