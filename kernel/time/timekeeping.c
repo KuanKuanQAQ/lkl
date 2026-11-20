@@ -24,6 +24,9 @@
 #include <linux/compiler.h>
 #include <linux/audit.h>
 #include <linux/random.h>
+#ifdef CONFIG_LKL_X86_PVCLOCK
+#include <asm/x86-clock.h>
+#endif
 
 #include "tick-internal.h"
 #include "ntp_internal.h"
@@ -1765,7 +1768,16 @@ void __init timekeeping_init(void)
 	struct clocksource *clock;
 	unsigned long flags;
 
+#ifdef CONFIG_LKL_X86_PVCLOCK
+	struct lkl_clock_bootstrap initial;
+
+	/* Seed all three timelines at the same hardware counter instant. */
+	lkl_arch_clock_seed(&initial);
+	wall_time = ns_to_timespec64(initial.real_ns);
+	boot_offset = ns_to_timespec64(initial.mono_ns);
+#else
 	read_persistent_wall_and_boot_offset(&wall_time, &boot_offset);
+#endif
 	if (timespec64_valid_settod(&wall_time) &&
 	    timespec64_to_ns(&wall_time) > 0) {
 		persistent_clock_exists = true;
@@ -1793,7 +1805,18 @@ void __init timekeeping_init(void)
 	tk_setup_internals(tk, clock);
 
 	tk_set_xtime(tk, &wall_time);
+#ifdef CONFIG_LKL_X86_PVCLOCK
+	{
+		u32 remainder;
+
+		tk->tkr_mono.cycle_last = initial.counter_ns;
+		tk->tkr_raw.cycle_last = initial.counter_ns;
+		tk->raw_sec = div_u64_rem(initial.raw_ns, NSEC_PER_SEC, &remainder);
+		tk->tkr_raw.xtime_nsec = (u64)remainder << tk->tkr_raw.shift;
+	}
+#else
 	tk->raw_sec = 0;
+#endif
 
 	tk_set_wall_to_mono(tk, wall_to_mono);
 
@@ -1801,6 +1824,9 @@ void __init timekeeping_init(void)
 
 	write_seqcount_end(&tk_core.seq);
 	raw_spin_unlock_irqrestore(&timekeeper_lock, flags);
+#ifdef CONFIG_LKL_X86_PVCLOCK
+	lkl_arch_clock_timekeeper_ready();
+#endif
 }
 
 /* time in seconds when suspend began for persistent clock */

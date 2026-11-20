@@ -67,6 +67,11 @@ LKL_ENTRY_POINTS += lkl_evl_strcmp lkl_evl_strncmp lkl_evl_strncpy \
 		lkl_evl_rb_replace_node lkl_evl_find_first_bit \
 		lkl_evl_find_first_zero_bit lkl_evl_int_sqrt lkl_evl_ns_to_timespec64
 
+ifeq ($(CONFIG_LKL_X86_PVCLOCK),y)
+LKL_ENTRY_POINTS += lkl_ktime_get_mono_fast_ns lkl_ktime_get_raw_fast_ns \
+	lkl_ktime_get_real_fast_ns lkl_clock_read_counter lkl_clock_is_ready
+endif
+
 ifeq ($(CONFIG_OUTPUT_FORMAT),elf32-i386)
 LKL_ENTRY_POINTS += \
 	__x86.get_pc_thunk.bx __x86.get_pc_thunk.dx __x86.get_pc_thunk.ax \

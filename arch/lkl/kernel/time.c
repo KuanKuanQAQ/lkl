@@ -12,11 +12,24 @@
 
 static unsigned long long boot_time;
 
+#ifdef CONFIG_LKL_X86_PVCLOCK
+#include <asm/x86-clock.h>
+static unsigned long long lkl_time_read(void)
+{
+	return lkl_clock_read_counter();
+}
+#else
+static unsigned long long lkl_time_read(void)
+{
+	return lkl_ops->time();
+}
+#endif
+
 void __ndelay(unsigned long nsecs)
 {
-	unsigned long long start = lkl_ops->time();
+	unsigned long long start = lkl_time_read();
 
-	while (lkl_ops->time() < start + nsecs)
+	while (lkl_time_read() < start + nsecs)
 		cpu_relax();
 }
 
@@ -36,7 +49,14 @@ void calibrate_delay(void)
 
 void read_persistent_clock64(struct timespec64 *ts)
 {
-	*ts = ns_to_timespec64(lkl_ops->time());
+#ifdef CONFIG_LKL_X86_PVCLOCK
+	struct lkl_clock_bootstrap sample;
+
+	lkl_arch_clock_seed(&sample);
+	*ts = ns_to_timespec64(sample.real_ns);
+#else
+	*ts = ns_to_timespec64(lkl_time_read());
+#endif
 }
 
 /*
@@ -48,21 +68,39 @@ unsigned long long sched_clock(void)
 	if (!boot_time)
 		return 0;
 
-	return lkl_ops->time() - boot_time;
+	return lkl_time_read() - boot_time;
 }
 
 static u64 clock_read(struct clocksource *cs)
 {
-	return lkl_ops->time();
+	return lkl_time_read();
 }
 
 static struct clocksource clocksource = {
-	.name	= "lkl",
+#ifdef CONFIG_LKL_X86_PVCLOCK
+	.name = "lkl-pvclock",
+#else
+	.name = "lkl",
+#endif
 	.rating = 499,
 	.read	= clock_read,
 	.flags	= CLOCK_SOURCE_IS_CONTINUOUS,
 	.mask	= CLOCKSOURCE_MASK(64),
 };
+
+#ifdef CONFIG_LKL_X86_PVCLOCK
+/* Select the hardware source before the first timekeeper snapshot. */
+struct clocksource * __init clocksource_default_clock(void)
+{
+	static bool configured;
+
+	if (!configured) {
+		__clocksource_update_freq_hz(&clocksource, NSEC_PER_SEC);
+		configured = true;
+	}
+	return &clocksource;
+}
+#endif
 
 static void *timer;
 
@@ -121,7 +159,8 @@ void __init time_init(void)
 	unsigned long timer_irq_flags = IRQF_NOBALANCING | IRQF_TIMER;
 
 	if (!lkl_ops->timer_alloc || !lkl_ops->timer_free ||
-	    !lkl_ops->timer_set_oneshot || !lkl_ops->time) {
+	    !lkl_ops->timer_set_oneshot ||
+	    (!IS_ENABLED(CONFIG_LKL_X86_PVCLOCK) && !lkl_ops->time)) {
 		pr_err("lkl: no time or timer support provided by host\n");
 		return;
 	}
@@ -138,6 +177,6 @@ void __init time_init(void)
 
 	clockevents_config_and_register(&clockevent, NSEC_PER_SEC, 1, ULONG_MAX);
 
-	boot_time = lkl_ops->time();
+	boot_time = lkl_time_read();
 	pr_info("lkl: time and timers initialized (irq%d)\n", timer_irq);
 }
